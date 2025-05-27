@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import '../styles.css';
 import { useParams } from 'react-router-dom';
 import Peer from 'peerjs';
+import { useNavigate } from 'react-router-dom';
+
 
 const MeetingPage = () => {
     const { roomId } = useParams();
@@ -12,25 +14,30 @@ const MeetingPage = () => {
     const [isMicMuted, setIsMicMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [currentCall, setCurrentCall] = useState(null);
+    const [message, setMessage] = useState('');
+
 
     const myVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
+
+    const navigate = useNavigate();
+
 
     // Initialize Peer and Media Stream
     useEffect(() => {
         const newPeer = new Peer(roomId);
         setPeer(newPeer);
 
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true }) //request access to users camera and microphone
             .then(stream => {
                 setMyStream(stream);
                 if (myVideoRef.current) {
-                    myVideoRef.current.srcObject = stream;
+                    myVideoRef.current.srcObject = stream;   //show the video on screen
                 }
 
                 newPeer.on('call', (call) => {
-                    call.answer(stream);
-                    call.on('stream', (remoteStream) => {
+                    call.answer(stream);    //if someone else tries to connect then we answer them by sending our media stream to them
+                    call.on('stream', (remoteStream) => {  //storing other persons stram in remoteStream
                         setRemoteStream(remoteStream);
                         setConnected(true);
                     });
@@ -45,6 +52,8 @@ const MeetingPage = () => {
     }, [roomId]);
 
     // Update video src when stream updates
+    // myVideoRef - It's a reference to the <video> HTML element that is used to display your own camera feed.
+    // This tells the browser to show this video stream inside this video element.
     useEffect(() => {
         if (myVideoRef.current && myStream) {
             myVideoRef.current.srcObject = myStream;
@@ -111,6 +120,13 @@ const MeetingPage = () => {
 
         setRemoteStream(null);
         setConnected(false);
+
+        setMessage('You left the meeting successfully 😊');
+
+
+        setTimeout(() => {
+            navigate('/');
+        }, 2000);
     };
 
 
@@ -118,6 +134,13 @@ const MeetingPage = () => {
         <div className="meeting-container">
             <h2 className="text-xl font-semibold text-center mb-4">Room: {roomId}</h2>
 
+            {message && (
+                <div className="text-green-600 text-center mb-4 font-medium">
+                    {message}
+                </div>
+            )}
+
+            {/* Conditionally shows remote video only when remoteStream is set. */}
             <div className="video-container flex justify-center items-center gap-4 mb-6">
                 <video ref={myVideoRef} muted autoPlay playsInline className="video w-1/3 rounded-lg border-2 border-gray-300"></video>
                 {remoteStream && (

@@ -108,7 +108,14 @@ const MeetingPage = () => {
         if (myStream) {
             myStream.getTracks().forEach(track => track.stop());
             setMyStream(null);
+
+            setTimeout(() => {
+                if (myVideoRef.current) {
+                    myVideoRef.current.srcObject = null;
+                }
+            }, 100);
         }
+
 
         if (myVideoRef.current) {
             myVideoRef.current.srcObject = null;

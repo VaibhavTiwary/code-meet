@@ -3,9 +3,10 @@ import '../styles.css';
 import { useParams } from 'react-router-dom';
 import Peer from 'peerjs';
 import { useNavigate } from 'react-router-dom';
+import CodeEditor from './CodeEditor';
 
 
-const MeetingPage = () => {
+const MeetingPage = ({ socket }) => {
     const { roomId } = useParams();
     const [peer, setPeer] = useState(null);
     const [myStream, setMyStream] = useState(null);
@@ -154,6 +155,9 @@ const MeetingPage = () => {
                     <video ref={remoteVideoRef} autoPlay playsInline className="video w-1/3 rounded-lg border-2 border-gray-300"></video>
                 )}
             </div>
+
+            <CodeEditor socket={socket} roomId={roomId} />
+
 
             {!connected && (
                 <button

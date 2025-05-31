@@ -1,5 +1,4 @@
-// src/App.jsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import Home from './components/Home';
@@ -7,9 +6,11 @@ import MeetingPage from './components/MeetingPage';
 
 const App = () => {
   const socketRef = useRef();
+  const [socketInitialized, setSocketInitialized] = useState(false);
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:5000'); // Update to deployed server URL when needed
+    socketRef.current = io('http://localhost:5000');
+    setSocketInitialized(true);
 
     return () => {
       socketRef.current.disconnect();
@@ -20,12 +21,13 @@ const App = () => {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route
-          path="/meeting/:roomId"
-          element={<MeetingPage socket={socketRef.current} />}
-        />
+        {socketInitialized && (
+          <Route
+            path="/meeting/:roomId"
+            element={<MeetingPage socket={socketRef.current} />}
+          />
+        )}
       </Routes>
-
     </Router>
   );
 };

@@ -15,20 +15,31 @@ const languages = {
 };
 
 const CodeEditor = ({ socket, roomId }) => {
-    const [code, setCode] = useState('');
-    const [language, setLanguage] = useState('javascript');
+    const [code, setCode] = useState("");
+    const [language, setLanguage] = useState("javascript");
 
-    const handleChange = (value) => {
+    const handleCodeChange = (value) => {
         setCode(value);
-        socket.emit('code-change', { roomId, code: value });
+        socket.emit("code-change", { roomId, code: value });
+    };
+
+    const handleLanguageChange = (lang) => {
+        setLanguage(lang);
+        socket.emit("language-change", { roomId, language: lang });
     };
 
     useEffect(() => {
+        if (!socket) return;
+
         const handleCodeChange = ({ code }) => setCode(code);
-        socket.on('code-change', handleCodeChange);
+        const handleLanguageChange = ({ language }) => setLanguage(language);
+
+        socket.on("code-change", handleCodeChange);
+        socket.on("language-change", handleLanguageChange);
 
         return () => {
-            socket.off('code-change', handleCodeChange);
+            socket.off("code-change", handleCodeChange);
+            socket.off("language-change", handleLanguageChange);
         };
     }, [socket]);
 
@@ -38,7 +49,7 @@ const CodeEditor = ({ socket, roomId }) => {
                 <label className="font-semibold">Language:</label>
                 <select
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+                    onChange={(e) => handleLanguageChange(e.target.value)}
                     className="border p-1 rounded"
                 >
                     <option value="javascript">JavaScript</option>
@@ -53,7 +64,7 @@ const CodeEditor = ({ socket, roomId }) => {
                 value={code}
                 height="400px"
                 extensions={[languages[language]()]}
-                onChange={(value) => handleChange(value)}
+                onChange={(value) => handleCodeChange(value)}
             />
         </div>
     );

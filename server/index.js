@@ -2,11 +2,22 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
+const { ExpressPeerServer } = require('peer');
 
 const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
+
+const peerServer = ExpressPeerServer(server, {
+    debug: true,
+    path: '/peerjs',
+});
+
+app.use('/peerjs', peerServer);
+
+
+
 const io = new Server(server, {
     cors: {
         origin: '*', // Or use your frontend URL
@@ -25,6 +36,11 @@ io.on('connection', (socket) => {
     socket.on('code-change', ({ roomId, code }) => {
         socket.to(roomId).emit('code-change', { code });
     });
+
+    socket.on('language-change', ({ roomId, language }) => {
+        socket.to(roomId).emit('language-change', { language });
+    });
+
 
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);

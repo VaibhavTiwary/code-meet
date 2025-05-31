@@ -5,7 +5,6 @@ import Peer from 'peerjs';
 import { useNavigate } from 'react-router-dom';
 import CodeEditor from './CodeEditor';
 
-
 const MeetingPage = ({ socket }) => {
     const { roomId } = useParams();
     const [peer, setPeer] = useState(null);
@@ -17,28 +16,38 @@ const MeetingPage = ({ socket }) => {
     const [currentCall, setCurrentCall] = useState(null);
     const [message, setMessage] = useState('');
 
-
     const myVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
 
     const navigate = useNavigate();
 
+    // Emit join-room on socket connect to join the correct room
+    useEffect(() => {
+        if (!socket || !roomId) return;
+
+        socket.emit('join-room', roomId);
+    }, [socket, roomId]);
 
     // Initialize Peer and Media Stream
     useEffect(() => {
-        const newPeer = new Peer(roomId);
+        const newPeer = new Peer(roomId, {
+            host: 'localhost',
+            port: 5000,
+            path: '/peerjs',
+        });
+
         setPeer(newPeer);
 
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true }) //request access to users camera and microphone
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 setMyStream(stream);
                 if (myVideoRef.current) {
-                    myVideoRef.current.srcObject = stream;   //show the video on screen
+                    myVideoRef.current.srcObject = stream;
                 }
 
                 newPeer.on('call', (call) => {
-                    call.answer(stream);    //if someone else tries to connect then we answer them by sending our media stream to them
-                    call.on('stream', (remoteStream) => {  //storing other persons stram in remoteStream
+                    call.answer(stream);
+                    call.on('stream', (remoteStream) => {
                         setRemoteStream(remoteStream);
                         setConnected(true);
                     });
@@ -53,8 +62,6 @@ const MeetingPage = ({ socket }) => {
     }, [roomId]);
 
     // Update video src when stream updates
-    // myVideoRef - It's a reference to the <video> HTML element that is used to display your own camera feed.
-    // This tells the browser to show this video stream inside this video element.
     useEffect(() => {
         if (myVideoRef.current && myStream) {
             myVideoRef.current.srcObject = myStream;
@@ -99,7 +106,6 @@ const MeetingPage = ({ socket }) => {
     };
 
     // Leave call
-    // Leave call and clean up
     const leaveCall = () => {
         if (currentCall) {
             currentCall.close();
@@ -117,7 +123,6 @@ const MeetingPage = ({ socket }) => {
             }, 100);
         }
 
-
         if (myVideoRef.current) {
             myVideoRef.current.srcObject = null;
         }
@@ -131,12 +136,10 @@ const MeetingPage = ({ socket }) => {
 
         setMessage('You left the meeting successfully 😊');
 
-
         setTimeout(() => {
             navigate('/');
         }, 2000);
     };
-
 
     return (
         <div className="meeting-container">
@@ -148,7 +151,6 @@ const MeetingPage = ({ socket }) => {
                 </div>
             )}
 
-            {/* Conditionally shows remote video only when remoteStream is set. */}
             <div className="video-container flex justify-center items-center gap-4 mb-6">
                 <video ref={myVideoRef} muted autoPlay playsInline className="video w-1/3 rounded-lg border-2 border-gray-300"></video>
                 {remoteStream && (
@@ -157,7 +159,6 @@ const MeetingPage = ({ socket }) => {
             </div>
 
             <CodeEditor socket={socket} roomId={roomId} />
-
 
             {!connected && (
                 <button

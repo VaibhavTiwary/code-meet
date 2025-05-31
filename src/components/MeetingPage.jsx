@@ -1,41 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles.css';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Peer from 'peerjs';
-import { useNavigate } from 'react-router-dom';
 import CodeEditor from './CodeEditor';
+import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash } from 'react-icons/fa';
 
 const MeetingPage = ({ socket }) => {
     const { roomId } = useParams();
     const [peer, setPeer] = useState(null);
     const [myStream, setMyStream] = useState(null);
-    const [remoteStream, setRemoteStream] = useState(null);
-    const [connected, setConnected] = useState(false);
+    const [peers, setPeers] = useState({});
+    const [remoteStreams, setRemoteStreams] = useState({});
+
     const [isMicMuted, setIsMicMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
-    const [currentCall, setCurrentCall] = useState(null);
     const [message, setMessage] = useState('');
 
     const myVideoRef = useRef(null);
-    const remoteVideoRef = useRef(null);
-
     const navigate = useNavigate();
 
-    // Emit join-room on socket connect to join the correct room
     useEffect(() => {
         if (!socket || !roomId) return;
-
         socket.emit('join-room', roomId);
     }, [socket, roomId]);
 
-    // Initialize Peer and Media Stream
     useEffect(() => {
-        const newPeer = new Peer(roomId, {
+        const newPeer = new Peer(undefined, {
             host: 'localhost',
             port: 5000,
             path: '/peerjs',
         });
-
         setPeer(newPeer);
 
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
@@ -44,57 +38,90 @@ const MeetingPage = ({ socket }) => {
                 if (myVideoRef.current) {
                     myVideoRef.current.srcObject = stream;
                 }
-
-                newPeer.on('call', (call) => {
-                    call.answer(stream);
-                    call.on('stream', (remoteStream) => {
-                        setRemoteStream(remoteStream);
-                        setConnected(true);
-                    });
-                    setCurrentCall(call);
-                });
             })
-            .catch(error => console.error('Error accessing media devices:', error));
+            .catch(err => console.error('Failed to get media stream:', err));
 
         return () => {
             newPeer.destroy();
+            if (myStream) {
+                myStream.getTracks().forEach(track => track.stop());
+            }
         };
-    }, [roomId]);
-
-    // Update video src when stream updates
-    useEffect(() => {
-        if (myVideoRef.current && myStream) {
-            myVideoRef.current.srcObject = myStream;
-        }
-    }, [myStream]);
+    }, []);
 
     useEffect(() => {
-        if (remoteVideoRef.current && remoteStream) {
-            remoteVideoRef.current.srcObject = remoteStream;
-        }
-    }, [remoteStream]);
+        if (!peer || !socket || !myStream) return;
 
-    // Start a new call
-    const startCall = (peerId) => {
-        const call = peer.call(peerId, myStream);
-        call.on('stream', (stream) => {
-            setRemoteStream(stream);
-            setConnected(true);
+        socket.on('all-users', (users) => {
+            users.forEach(userId => {
+                const call = peer.call(userId, myStream);
+                call.on('stream', remoteStream => {
+                    addRemoteStream(userId, remoteStream);
+                });
+                call.on('close', () => {
+                    removeRemoteStream(userId);
+                });
+                setPeers(prev => ({ ...prev, [userId]: call }));
+            });
         });
-        setCurrentCall(call);
+
+        socket.on('user-joined', (userId) => {
+            console.log('User joined:', userId);
+        });
+
+        socket.on('user-left', (userId) => {
+            console.log('User left:', userId);
+            if (peers[userId]) {
+                peers[userId].close();
+                setPeers(prev => {
+                    const updated = { ...prev };
+                    delete updated[userId];
+                    return updated;
+                });
+                removeRemoteStream(userId);
+            }
+        });
+
+        peer.on('call', (call) => {
+            call.answer(myStream);
+            call.on('stream', (remoteStream) => {
+                addRemoteStream(call.peer, remoteStream);
+            });
+            call.on('close', () => {
+                removeRemoteStream(call.peer);
+            });
+            setPeers(prev => ({ ...prev, [call.peer]: call }));
+        });
+
+        return () => {
+            socket.off('all-users');
+            socket.off('user-joined');
+            socket.off('user-left');
+            peer.off('call');
+        };
+    }, [peer, socket, myStream, peers]);
+
+    const addRemoteStream = (peerId, stream) => {
+        setRemoteStreams(prev => ({ ...prev, [peerId]: stream }));
     };
 
-    // Toggle mic
+    const removeRemoteStream = (peerId) => {
+        setRemoteStreams(prev => {
+            const updated = { ...prev };
+            delete updated[peerId];
+            return updated;
+        });
+    };
+
     const toggleMic = () => {
         if (myStream) {
             myStream.getAudioTracks().forEach(track => {
-                track.enabled = !isMicMuted;
+                track.enabled = isMicMuted; // if muted, enable; else disable
             });
             setIsMicMuted(!isMicMuted);
         }
     };
 
-    // Toggle camera
     const toggleCamera = () => {
         if (myStream) {
             const videoTrack = myStream.getVideoTracks()[0];
@@ -105,35 +132,20 @@ const MeetingPage = ({ socket }) => {
         }
     };
 
-    // Leave call
     const leaveCall = () => {
-        if (currentCall) {
-            currentCall.close();
-            setCurrentCall(null);
-        }
-
+        Object.values(peers).forEach(call => call.close());
+        setPeers({});
+        Object.values(remoteStreams).forEach(stream => {
+            stream.getTracks().forEach(track => track.stop());
+        });
+        setRemoteStreams({});
         if (myStream) {
             myStream.getTracks().forEach(track => track.stop());
             setMyStream(null);
-
-            setTimeout(() => {
-                if (myVideoRef.current) {
-                    myVideoRef.current.srcObject = null;
-                }
-            }, 100);
         }
-
         if (myVideoRef.current) {
             myVideoRef.current.srcObject = null;
         }
-
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = null;
-        }
-
-        setRemoteStream(null);
-        setConnected(false);
-
         setMessage('You left the meeting successfully 😊');
 
         setTimeout(() => {
@@ -142,8 +154,8 @@ const MeetingPage = ({ socket }) => {
     };
 
     return (
-        <div className="meeting-container">
-            <h2 className="text-xl font-semibold text-center mb-4">Room: {roomId}</h2>
+        <div className="meeting-container flex flex-col p-4 max-w-full h-screen bg-gray-100">
+            <h2 className="text-2xl font-semibold text-center mb-6">Room: {roomId}</h2>
 
             {message && (
                 <div className="text-green-600 text-center mb-4 font-medium">
@@ -151,43 +163,59 @@ const MeetingPage = ({ socket }) => {
                 </div>
             )}
 
-            <div className="video-container flex justify-center items-center gap-4 mb-6">
-                <video ref={myVideoRef} muted autoPlay playsInline className="video w-1/3 rounded-lg border-2 border-gray-300"></video>
-                {remoteStream && (
-                    <video ref={remoteVideoRef} autoPlay playsInline className="video w-1/3 rounded-lg border-2 border-gray-300"></video>
-                )}
-            </div>
+            <div className="flex gap-6 flex-grow">
+                {/* Left: Videos and controls */}
+                <div className="flex flex-col items-center flex-1 overflow-y-auto">
+                    <video
+                        ref={myVideoRef}
+                        muted
+                        autoPlay
+                        playsInline
+                        className="video w-full rounded-lg border-2 border-gray-300 shadow-md mb-4 max-h-[300px] object-cover"
+                    />
+                    <div className="remote-videos-container grid grid-cols-1 sm:grid-cols-2 gap-4 w-full mb-4 overflow-auto max-h-[400px]">
+                        {Object.entries(remoteStreams).map(([peerId, stream]) => (
+                            <video
+                                key={peerId}
+                                autoPlay
+                                playsInline
+                                ref={video => {
+                                    if (video) video.srcObject = stream;
+                                }}
+                                className="video w-full rounded-lg border-2 border-gray-300 shadow-md object-cover max-h-[200px]"
+                            />
+                        ))}
+                    </div>
 
-            <CodeEditor socket={socket} roomId={roomId} />
+                    <div className="controls flex justify-around w-full max-w-md">
+                        <button
+                            onClick={toggleMic}
+                            className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md flex items-center gap-2"
+                        >
+                            {isMicMuted ? <FaMicrophoneSlash /> : <FaMicrophone />}
+                            {isMicMuted ? 'Unmute' : 'Mute'}
+                        </button>
+                        <button
+                            onClick={toggleCamera}
+                            className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md flex items-center gap-2"
+                        >
+                            {isCameraOff ? <FaVideoSlash /> : <FaVideo />}
+                            {isCameraOff ? 'Camera On' : 'Camera Off'}
+                        </button>
+                        <button
+                            onClick={leaveCall}
+                            className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-md flex items-center gap-2"
+                        >
+                            <FaPhoneSlash />
+                            Leave
+                        </button>
+                    </div>
+                </div>
 
-            {!connected && (
-                <button
-                    onClick={() => startCall('peer-id-to-connect-to')}
-                    className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-400"
-                >
-                    Join Call
-                </button>
-            )}
-
-            <div className="controls flex justify-around mt-4">
-                <button
-                    onClick={toggleMic}
-                    className="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-400"
-                >
-                    {isMicMuted ? 'Unmute' : 'Mute'}
-                </button>
-                <button
-                    onClick={toggleCamera}
-                    className="bg-orange-500 text-white py-2 px-4 rounded-md hover:bg-orange-400"
-                >
-                    {isCameraOff ? 'Turn Camera On' : 'Turn Camera Off'}
-                </button>
-                <button
-                    onClick={leaveCall}
-                    className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-400"
-                >
-                    Leave
-                </button>
+                {/* Right: Code Editor */}
+                <div className="flex-1 h-full overflow-auto rounded-lg shadow-lg bg-white p-4">
+                    <CodeEditor socket={socket} roomId={roomId} />
+                </div>
             </div>
         </div>
     );

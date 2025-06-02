@@ -18,12 +18,12 @@ app.use('/peerjs', peerServer);
 
 const io = new Server(server, {
     cors: {
-        origin: '*', // Or use your frontend URL
+        origin: '*',
         methods: ['GET', 'POST'],
     },
 });
 
-const usersInRoom = {}; // Track users by room
+const usersInRoom = {};
 
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);

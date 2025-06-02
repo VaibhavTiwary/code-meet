@@ -30,6 +30,7 @@ const MeetingPage = ({ socket }) => {
             port: 5000,
             path: '/peerjs',
         });
+
         setPeer(newPeer);
 
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
@@ -155,7 +156,10 @@ const MeetingPage = ({ socket }) => {
 
     return (
         <div className="meeting-container flex flex-col p-4 max-w-full h-screen bg-gray-100">
-            <h2 className="text-2xl font-semibold text-center mb-6">Room: {roomId}</h2>
+            <div className="meeting-header text-center mb-6">
+                <h1 className="text-3xl font-bold text-blue-600 mb-1">CodeMeet</h1>
+                <p className="text-sm text-gray-500">Room ID: <span className="font-mono">{roomId}</span></p>
+            </div>
 
             {message && (
                 <div className="text-green-600 text-center mb-4 font-medium">

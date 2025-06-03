@@ -5,19 +5,8 @@ import { python } from "@codemirror/lang-python";
 import { java } from "@codemirror/lang-java";
 import { cpp } from "@codemirror/lang-cpp";
 
-const languages = {
-    javascript,
-    python,
-    java,
-    cpp,
-};
-
-const languageMap = {
-    javascript: 63,
-    python: 71,
-    java: 62,
-    cpp: 54,
-};
+const languages = { javascript, python, java, cpp };
+const languageMap = { javascript: 63, python: 71, java: 62, cpp: 54 };
 
 const CodeEditor = ({ socket, roomId }) => {
     const [code, setCode] = useState("");
@@ -42,9 +31,9 @@ const CodeEditor = ({ socket, roomId }) => {
                 {
                     method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
-                        'x-rapidapi-key': '3135581e07msh9f50010a21999c8p11bbc3jsnaef3f116942f',
-                        'x-rapidapi-host': 'judge0-ce.p.rapidapi.com'
+                        "Content-Type": "application/json",
+                        "x-rapidapi-key": "3135581e07msh9f50010a21999c8p11bbc3jsnaef3f116942f",
+                        "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
                     },
                     body: JSON.stringify({
                         language_id: languageMap[language],
@@ -60,42 +49,57 @@ const CodeEditor = ({ socket, roomId }) => {
 
             const data = await response.json();
 
-            if (data.stdout) {
-                setOutput(data.stdout);
-            } else if (data.stderr) {
-                setOutput(data.stderr);
-            } else if (data.compile_output) {
-                setOutput(data.compile_output);
-            } else {
-                setOutput("No output");
+            let result = "";
+            if (data.stdout) result = data.stdout;
+            else if (data.stderr) result = data.stderr;
+            else if (data.compile_output) result = data.compile_output;
+            else result = "No output";
+
+            setOutput(result);
+            if (socket) {
+                console.log("Sending output to others:", result);
+                socket.emit("output-change", { roomId, output: result });
             }
         } catch (error) {
-            setOutput("Error running code: " + error.message);
+            const errorMsg = "Error running code: " + error.message;
+            setOutput(errorMsg);
+            if (socket) socket.emit("output-change", { roomId, output: errorMsg });
             console.error(error);
         }
     };
 
-
-
-
     useEffect(() => {
         if (!socket) return;
 
-        const handleRemoteCodeChange = ({ code }) => setCode(code);
-        const handleRemoteLanguageChange = ({ language }) => setLanguage(language);
+        const handleRemoteCodeChange = ({ code }) => {
+            console.log("Received code change");
+            setCode(code);
+        };
+
+        const handleRemoteLanguageChange = ({ language }) => {
+            console.log("Received language change");
+            setLanguage(language);
+        };
+
+        const handleRemoteOutputChange = ({ output }) => {
+            console.log("Received output change:", output);
+            setOutput(output);
+        };
 
         socket.on("code-change", handleRemoteCodeChange);
         socket.on("language-change", handleRemoteLanguageChange);
+        socket.on("output-change", handleRemoteOutputChange);
 
         return () => {
             socket.off("code-change", handleRemoteCodeChange);
             socket.off("language-change", handleRemoteLanguageChange);
+            socket.off("output-change", handleRemoteOutputChange);
         };
     }, [socket]);
 
     return (
-        <div className="p-4">
-            <div className="flex justify-between items-center mb-2">
+        <div className="p-4 max-h-screen flex flex-col space-y-4">
+            <div className="flex justify-between items-center">
                 <label className="font-semibold">Language:</label>
                 <select
                     value={language}
@@ -109,26 +113,30 @@ const CodeEditor = ({ socket, roomId }) => {
                 </select>
             </div>
 
-            <CodeMirror
-                value={code}
-                height="400px"
-                extensions={[languages[language]()]}
-                onChange={(value) => handleCodeChange(value)}
-            />
+            <div className="code-editor-container">
+                <div className="flex-1 overflow-hidden border rounded" style={{ maxHeight: "400px" }}>
+                    <CodeMirror
+                        value={code}
+                        height="100%"
+                        extensions={[languages[language]()]}
+                        onChange={(value) => handleCodeChange(value)}
+                    />
+                </div>
 
-            <button
-                onClick={runCode}
-                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-                Run Code
-            </button>
+                <button
+                    onClick={runCode}
+                    className="self-start px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                >
+                    Run Code
+                </button>
 
-            <pre
-                className="output-box mt-3 p-2 bg-gray-100 rounded"
-                style={{ whiteSpace: "pre-wrap", minHeight: "100px", border: "1px solid #ccc" }}
-            >
-                {output}
-            </pre>
+                <pre
+                    className="p-2 bg-gray-100 rounded overflow-auto"
+                    style={{ whiteSpace: "pre-wrap", minHeight: "100px", maxHeight: "200px", border: "1px solid #ccc" }}
+                >
+                    {output}
+                </pre>
+            </div>
         </div>
     );
 };

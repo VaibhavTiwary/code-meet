@@ -158,7 +158,9 @@ const MeetingPage = ({ socket }) => {
         <div className="meeting-container flex flex-col p-4 max-w-full h-screen bg-gray-100">
             <div className="meeting-header text-center mb-6">
                 <h1 className="text-3xl font-bold text-blue-600 mb-1">CodeMeet</h1>
-                <p className="text-sm text-gray-500">Room ID: <span className="font-mono">{roomId}</span></p>
+                <p className="text-sm text-gray-500">
+                    Room ID: <span className="font-mono">{roomId}</span>
+                </p>
             </div>
 
             {message && (
@@ -167,7 +169,8 @@ const MeetingPage = ({ socket }) => {
                 </div>
             )}
 
-            <div className="flex gap-6 flex-grow">
+            {/* Main layout */}
+            <div className="flex gap-6 flex-grow overflow-hidden">
                 {/* Left: Videos and controls */}
                 <div className="flex flex-col items-center flex-1 overflow-y-auto">
                     <video
@@ -177,13 +180,14 @@ const MeetingPage = ({ socket }) => {
                         playsInline
                         className="video w-full rounded-lg border-2 border-gray-300 shadow-md mb-4 max-h-[300px] object-cover"
                     />
+
                     <div className="remote-videos-container grid grid-cols-1 sm:grid-cols-2 gap-4 w-full mb-4 overflow-auto max-h-[400px]">
                         {Object.entries(remoteStreams).map(([peerId, stream]) => (
                             <video
                                 key={peerId}
                                 autoPlay
                                 playsInline
-                                ref={video => {
+                                ref={(video) => {
                                     if (video) video.srcObject = stream;
                                 }}
                                 className="video w-full rounded-lg border-2 border-gray-300 shadow-md object-cover max-h-[200px]"
@@ -217,12 +221,13 @@ const MeetingPage = ({ socket }) => {
                 </div>
 
                 {/* Right: Code Editor */}
-                <div className="flex-1 h-full overflow-auto rounded-lg shadow-lg bg-white p-4">
+                <div className="flex-1 overflow-hidden rounded-lg shadow-lg bg-white">
                     <CodeEditor socket={socket} roomId={roomId} />
                 </div>
             </div>
         </div>
     );
+
 };
 
 export default MeetingPage;

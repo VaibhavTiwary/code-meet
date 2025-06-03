@@ -53,6 +53,11 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('language-change', { language });
     });
 
+    socket.on('output-change', ({ roomId, output }) => {
+        socket.to(roomId).emit('output-change', { output });
+    });
+
+
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
 
